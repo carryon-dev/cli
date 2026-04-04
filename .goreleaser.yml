@@ -1,0 +1,92 @@
+version: 2
+
+project_name: carryon
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: carryon
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}
+    files:
+      - LICENSE*
+      - README*
+
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  github:
+    owner: carryon-dev
+    name: cli
+  draft: false
+  prerelease: auto
+  name_template: "{{.Tag}}"
+
+brews:
+  - repository:
+      owner: carryon-dev
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/carryon-dev/cli
+    description: Terminal session manager - persistent terminals you can access from anywhere
+    license: Apache-2.0
+    install: |
+      bin.install "carryon"
+    test: |
+      system bin/"carryon", "--version"
+
+scoops:
+  - repository:
+      owner: carryon-dev
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: https://github.com/carryon-dev/cli
+    description: Terminal session manager - persistent terminals you can access from anywhere
+    license: Apache-2.0
+
+nfpms:
+  - package_name: carryon
+    vendor: carryon-dev
+    homepage: https://github.com/carryon-dev/cli
+    description: Terminal session manager - persistent terminals you can access from anywhere
+    license: Apache-2.0
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin

@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Run tests with coverage
+        if: matrix.os == 'ubuntu-latest'
+        run: go test ./internal/... -count=1 -timeout=120s -coverprofile=coverage.out -covermode=atomic
+
+      - name: Run tests
+        if: matrix.os != 'ubuntu-latest'
+        run: go test ./... -count=1 -timeout=120s
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+      - name: Build binary (Unix)
+        if: runner.os != 'Windows'
+        run: go build -o carryon .
+
+      - name: Build binary (Windows)
+        if: runner.os == 'Windows'
+        run: go build -o carryon.exe .
+
+  coverage-report:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Download coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+
+      - name: Generate coverage summary
+        id: coverage
+        run: |
+          total=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $NF}')
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+
+          # Build markdown table
+          {
+            echo "## Test Coverage: ${total}"
+            echo ""
+            echo "| Package | Coverage |"
+            echo "|---------|----------|"
+            go tool cover -func=coverage.out | grep -v '^total:' | awk '{print "| " $1 " | " $NF " |"}' | sort -t'|' -k3 -rn | head -30
+            echo ""
+            echo "---"
+            echo "*Full coverage report available in workflow artifacts.*"
+          } > coverage-report.md
+
+      - name: Post coverage to PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: coverage-report.md

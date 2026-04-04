@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>carryOn - Login</title>
+<link rel="icon" type="image/svg+xml"
+  href="data:image/svg+xml,%3Csvg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'%3E%3Cstyle%3E.bg%7Bfill:%231a1a2e%7D.s%7Bstroke:%23e0e0e0%7D.d%7Bfill:%234ecdc4%7D%3C/style%3E%3Crect width='128' height='128' rx='24' class='bg'/%3E%3Cpath d='M30 46 L52 66 L30 86' fill='none' class='s' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='68' cy='84' r='5.5' class='d' opacity='0.85'/%3E%3Ccircle cx='86' cy='84' r='5.5' class='d' opacity='0.45'/%3E%3C/svg%3E">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .card {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  .brand {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #4ecdc4;
+  }
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #a0a0b0;
+  }
+  input[type="password"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #2a2a4a;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="password"]:focus {
+    border-color: #4ecdc4;
+  }
+  button {
+    width: 100%;
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border: none;
+    border-radius: 6px;
+    background: #4ecdc4;
+    color: #1a1a2e;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  button:hover { opacity: 0.85; }
+  .error {
+    margin-top: 1rem;
+    padding: 0.6rem;
+    border-radius: 6px;
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff6b6b;
+    font-size: 0.9rem;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand"><svg viewBox="0 0 268 64" xmlns="http://www.w3.org/2000/svg" width="200" height="48"><rect width="64" height="64" rx="12" fill="#1a1a2e"/><path d="M15 23 L26 33 L15 43" fill="none" stroke="#e0e0e0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="33" cy="42" r="2.25" fill="#4ecdc4" opacity="0.8"/><circle cx="41" cy="42" r="2.25" fill="#4ecdc4" opacity="0.45"/><circle cx="49" cy="42" r="2.25" fill="#4ecdc4" opacity="0.2"/><text x="80" y="43" font-family="'Inter','SF Pro Display',system-ui,-apple-system,sans-serif" font-size="36" fill="#e0e0e0" font-weight="500" letter-spacing="-0.5">carry<tspan fill="#4ecdc4" font-weight="600">On</tspan></text></svg></div>
+    <form method="POST" action="/login">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autofocus required>
+      <button type="submit">Log in</button>
+    </form>
+    {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+  </div>
+</body>
+</html>

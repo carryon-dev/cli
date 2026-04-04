@@ -1,0 +1,28 @@
+# Binary
+carryon
+carryon.exe
+*.bak
+*.old.exe
+
+# GoReleaser
+dist/
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db

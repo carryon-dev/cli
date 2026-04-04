@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+
+      - name: Sign checksums.txt
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+
+          # Download checksums.txt from the release goreleaser just created
+          gh release download "$tag" -R carryon-dev/cli -p "checksums.txt" -D .
+
+          # Sign it with the ed25519 private key
+          go run scripts/sign-checksums.go checksums.txt
+
+          # Upload the signature to the release
+          gh release upload "$tag" checksums.txt.sig -R carryon-dev/cli
+
+  smoke-test:
+    needs: release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: carryon-*-linux-amd64.tar.gz
+          - os: macos-latest
+            asset: carryon-*-darwin-arm64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Download and test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release download "$tag" -R carryon-dev/cli -p "${{ matrix.asset }}" -D .
+          tar xzf carryon-*.tar.gz
+          chmod +x carryon
+          ./carryon --version

@@ -1,0 +1,1503 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <title>carryOn</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="format-detection" content="telephone=no, date=no, email=no, address=no">
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,%3Csvg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'%3E%3Cstyle%3E.bg%7Bfill:%231a1a2e%7D.s%7Bstroke:%23e0e0e0%7D.d%7Bfill:%234ecdc4%7D%3C/style%3E%3Crect width='128' height='128' rx='24' class='bg'/%3E%3Cpath d='M30 46 L52 66 L30 86' fill='none' class='s' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='68' cy='84' r='5.5' class='d' opacity='0.85'/%3E%3Ccircle cx='86' cy='84' r='5.5' class='d' opacity='0.45'/%3E%3C/svg%3E">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.min.css">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Hide iOS input accessory bar on xterm textarea */
+    .xterm-helper-textarea {
+      font-size: 1px !important;
+    }
+
+    :root {
+      --bg: #0d1117;
+      --sidebar-bg: #161b22;
+      --border: #21262d;
+      --border-hover: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #4ecdc4;
+      --green: #3fb950;
+      --purple: #a371f7;
+      --red: #f85149;
+      --sidebar-width: 240px;
+      --topbar-height: 48px;
+      --tabbar-height: 38px;
+    }
+
+    html,
+    body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--topbar-height);
+      background: var(--sidebar-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      z-index: 100;
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      user-select: none;
+    }
+
+    .topbar-brand svg {
+      display: block;
+    }
+
+    .hamburger {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .hamburger:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .hamburger svg {
+      display: block;
+    }
+
+    .topbar-spacer {
+      flex: 1;
+    }
+
+    .conn-badge {
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--border);
+      padding: 3px 8px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .conn-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--border-hover);
+      flex-shrink: 0;
+    }
+
+    .conn-badge .dot.active {
+      background: var(--green);
+    }
+
+    /* ── Layout shell ── */
+    .shell {
+      display: flex;
+      position: fixed;
+      top: var(--topbar-height);
+      bottom: 0;
+      left: 0;
+      right: 0;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: width 0.2s ease, opacity 0.2s ease;
+    }
+
+    .sidebar.collapsed {
+      width: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .sidebar-inner {
+      width: var(--sidebar-width);
+      min-width: var(--sidebar-width);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .sidebar-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 0 16px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .sidebar-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .sidebar-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .sidebar-scroll::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .group-header {
+      display: flex;
+      align-items: center;
+      padding: 6px 14px 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      user-select: none;
+    }
+
+    .group-header .count {
+      margin-left: auto;
+      background: var(--border);
+      border-radius: 8px;
+      padding: 0 6px;
+      font-size: 10px;
+      line-height: 16px;
+    }
+
+    .session-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 12px;
+      margin: 1px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.12s;
+      min-width: 0;
+    }
+
+    .session-row:hover {
+      background: var(--border);
+    }
+
+    .session-row.open {
+      background: rgba(56, 139, 253, 0.12);
+    }
+
+    .session-row.open:hover {
+      background: rgba(56, 139, 253, 0.18);
+    }
+
+    .session-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 5px;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
+      flex-shrink: 0;
+      color: var(--text-muted);
+    }
+
+    .session-icon.native {
+      color: var(--green);
+    }
+
+    .session-icon.tmux {
+      color: var(--purple);
+    }
+
+    .session-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .session-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+
+    .session-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .session-status {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .session-status.connected {
+      background: var(--green);
+    }
+
+    .sidebar-empty {
+      padding: 24px 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .sidebar-empty code {
+      background: var(--border);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
+    }
+
+    /* Mobile overlay backdrop */
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: var(--sidebar-width);
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 90;
+    }
+
+    /* ── Main area ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    /* ── Tab bar ── */
+    .tabbar {
+      height: var(--tabbar-height);
+      background: var(--sidebar-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-end;
+      overflow-x: auto;
+      overflow-y: hidden;
+      flex-shrink: 0;
+    }
+
+    .tabbar::-webkit-scrollbar {
+      height: 3px;
+    }
+
+    .tabbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .tabbar::-webkit-scrollbar-thumb {
+      background: var(--border);
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 12px;
+      height: 34px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background 0.12s, color 0.12s;
+      margin-top: 4px;
+    }
+
+    .tab:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .tab.active {
+      background: var(--bg);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .tab .tab-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 1px 2px;
+      border-radius: 3px;
+      line-height: 1;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .tab .tab-close:hover {
+      background: var(--border-hover);
+      color: var(--red);
+    }
+
+    .tab .tab-icon {
+      font-size: 10px;
+      font-family: 'SF Mono', Menlo, monospace;
+      font-weight: 700;
+    }
+
+    .tab .tab-icon.native {
+      color: var(--green);
+    }
+
+    .tab .tab-icon.tmux {
+      color: var(--purple);
+    }
+
+    .tab .tab-activity {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+      display: none;
+    }
+
+    .tab.has-activity .tab-activity {
+      display: block;
+    }
+
+    /* ── Terminal panes ── */
+    .term-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .term-pane {
+      position: absolute;
+      inset: 0;
+      padding: 8px;
+      display: none;
+    }
+
+    .term-pane.active {
+      display: flex;
+    }
+
+    .term-pane .xterm {
+      flex: 1;
+    }
+
+    .term-pane .xterm-viewport {
+      border-radius: 0;
+    }
+
+    .term-pane .xterm-screen {
+      background: var(--bg);
+    }
+
+    .xterm-decoration-overview-ruler {
+      display: none;
+    }
+
+    .xterm-viewport::-webkit-scrollbar {
+      width: 0;
+    }
+
+    .xterm-viewport {
+      scrollbar-width: none;
+      background-color: var(--bg) !important;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-muted);
+      user-select: none;
+    }
+
+    .empty-state .empty-icon {
+      opacity: 0.5;
+    }
+
+    .empty-state .empty-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .empty-state .empty-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      opacity: 0.7;
+    }
+
+    /* ── Mobile ── */
+    @media (max-width: 640px) {
+      :root {
+        --topbar-height: 36px;
+      }
+
+      /* Hide brand and connection badge on mobile */
+      .topbar-brand,
+      .conn-badge {
+        display: none;
+      }
+
+      /* Slim topbar becomes the single bar */
+      .topbar {
+        height: 36px;
+        padding: 0;
+        gap: 0;
+      }
+
+      .hamburger {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0;
+        flex-shrink: 0;
+        border-right: 1px solid var(--border);
+      }
+
+      .topbar-spacer {
+        display: none;
+      }
+
+      /* Tabbar merges into topbar on mobile (reparented via JS) */
+      .tabbar {
+        flex: 1;
+        min-width: 0;
+        height: 36px;
+        border-bottom: none;
+        background: transparent;
+        align-items: center;
+        padding: 0 4px;
+        gap: 4px;
+        scrollbar-width: none;
+      }
+
+      .tabbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      /* Compact tabs on mobile */
+      .tab {
+        height: 26px;
+        padding: 0 10px;
+        margin-top: 0;
+        border: none;
+        border-radius: 4px;
+        font-size: 11px;
+        gap: 5px;
+      }
+
+      .tab.active {
+        background: var(--bg);
+        border: none;
+      }
+
+      .tab .tab-close {
+        display: none;
+      }
+
+      .tab.active .tab-close {
+        display: flex;
+        font-size: 10px;
+        padding: 0 1px;
+      }
+
+      .tab .tab-icon {
+        font-size: 9px;
+      }
+
+      /* Shell starts below the single 36px bar */
+      .shell {
+        top: 36px;
+      }
+
+      .term-pane {
+        padding-bottom: 0;
+      }
+
+      /* Sidebar */
+      .sidebar {
+        position: fixed;
+        top: 36px;
+        bottom: 0;
+        left: 0;
+        z-index: 95;
+        width: var(--sidebar-width) !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+        transform: translateX(-100%);
+        transition: transform 0.22s ease;
+      }
+
+      .sidebar.mobile-open {
+        transform: translateX(0);
+      }
+
+      .sidebar.collapsed {
+        transform: translateX(-100%);
+        width: var(--sidebar-width) !important;
+        opacity: 1 !important;
+      }
+
+      .sidebar-backdrop {
+        display: block;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.22s;
+      }
+
+      .sidebar-backdrop.visible {
+        opacity: 1;
+        pointer-events: all;
+      }
+    }
+
+    /* -- Mobile keyboard toolbar -- */
+    .key-toolbar {
+      display: none;
+    }
+
+    @media (max-width: 640px) {
+      .key-toolbar {
+        display: flex;
+        align-items: center;
+        height: 42px;
+        flex-shrink: 0;
+        background: var(--bg);
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        padding: 5px 8px;
+        gap: 6px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+
+      .key-toolbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      .key-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 32px;
+        min-width: 40px;
+        padding: 0 12px;
+        background: #30363d;
+        color: #e6edf3;
+        border: 1px solid #444c56;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: 'SF Mono', Menlo, monospace;
+        flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+      }
+
+      .key-btn:active {
+        background: #484f58;
+      }
+
+      #toolbar-main,
+      #toolbar-ctrl {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <button class="hamburger" id="hamburger" title="Toggle sidebar" aria-label="Toggle sidebar">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <rect x="2" y="4" width="14" height="1.5" rx="1" fill="currentColor" />
+        <rect x="2" y="8.25" width="14" height="1.5" rx="1" fill="currentColor" />
+        <rect x="2" y="12.5" width="14" height="1.5" rx="1" fill="currentColor" />
+      </svg>
+    </button>
+    <span class="topbar-brand"><svg viewBox="0 0 268 64" xmlns="http://www.w3.org/2000/svg" height="28">
+        <rect width="64" height="64" rx="12" fill="#1a1a2e" />
+        <path d="M15 23 L26 33 L15 43" fill="none" stroke="#e0e0e0" stroke-width="2.5" stroke-linecap="round"
+          stroke-linejoin="round" />
+        <circle cx="33" cy="42" r="2.25" fill="#4ecdc4" opacity="0.8" />
+        <circle cx="41" cy="42" r="2.25" fill="#4ecdc4" opacity="0.45" />
+        <circle cx="49" cy="42" r="2.25" fill="#4ecdc4" opacity="0.2" /><text x="80" y="43"
+          font-family="'Inter','SF Pro Display',system-ui,-apple-system,sans-serif" font-size="36" fill="#e0e0e0"
+          font-weight="500" letter-spacing="-0.5">carry<tspan fill="#4ecdc4" font-weight="600">On</tspan></text>
+      </svg></span>
+    <div class="topbar-spacer"></div>
+    <div class="conn-badge" id="conn-badge">
+      <span class="dot" id="conn-dot"></span>
+      <span id="conn-text">0 open</span>
+    </div>
+  </header>
+
+  <!-- Layout shell -->
+  <div class="shell">
+
+    <!-- Sidebar backdrop (mobile) - must be before sidebar so sidebar is on top for touch events -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-inner">
+        <div class="sidebar-scroll" id="sidebar-scroll">
+          <div class="sidebar-empty" id="sidebar-empty" style="display:none">
+            No sessions running.<br>
+            Start one with<br><code>carryon --name my-session</code>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main content -->
+    <div class="main">
+      <!-- Tab bar -->
+      <div class="tabbar" id="tabbar"></div>
+
+      <!-- Terminal area -->
+      <div class="term-area" id="term-area">
+        <!-- Empty state -->
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon"><svg width="64" height="64" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+              <rect width="128" height="128" rx="24" fill="#1a1a2e" />
+              <path d="M30 46 L52 66 L30 86" fill="none" stroke="#e0e0e0" stroke-width="5" stroke-linecap="round"
+                stroke-linejoin="round" />
+              <circle cx="66" cy="84" r="4.5" fill="#4ecdc4" opacity="0.8" />
+              <circle cx="82" cy="84" r="4.5" fill="#4ecdc4" opacity="0.45" />
+              <circle cx="98" cy="84" r="4.5" fill="#4ecdc4" opacity="0.2" />
+            </svg></div>
+          <div class="empty-title">Select a session from the sidebar</div>
+          <div class="empty-sub">Open multiple terminals simultaneously with tabs</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.shell -->
+
+  <!-- Mobile keyboard toolbar (outside shell to avoid stacking context issues) -->
+  <div class="key-toolbar" id="key-toolbar">
+    <div id="toolbar-main">
+      <div class="key-btn" data-key="Escape">Esc</div>
+      <div class="key-btn" data-key="Tab">Tab</div>
+      <div class="key-btn" id="ctrl-btn">Ctrl</div>
+      <div class="key-btn" data-key="ArrowUp">&uarr;</div>
+      <div class="key-btn" data-key="ArrowDown">&darr;</div>
+      <div class="key-btn" data-key="ArrowLeft">&larr;</div>
+      <div class="key-btn" data-key="ArrowRight">&rarr;</div>
+      <div class="key-btn" data-action="paste">Paste</div>
+    </div>
+    <div id="toolbar-ctrl" style="visibility:hidden;position:absolute">
+      <div class="key-btn" id="ctrl-back">&larr;</div>
+      <div class="key-btn" data-key="Ctrl+C">^C</div>
+      <div class="key-btn" data-key="Ctrl+D">^D</div>
+      <div class="key-btn" data-key="Ctrl+Z">^Z</div>
+      <div class="key-btn" data-key="Ctrl+L">^L</div>
+      <div class="key-btn" data-key="Ctrl+A">^A</div>
+      <div class="key-btn" data-key="Ctrl+E">^E</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.12.0/lib/addon-web-links.min.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      // ── State ──────────────────────────────────────────────────────────────
+      // terminals: Map<sessionId, { term, fitAddon, ws, pane, name, backend }>
+      const terminals = new Map();
+      let activeId = null;
+      let sidebarOpen = true;
+      let isMobile = window.innerWidth <= 640;
+      let sessions = []; // latest from /api/sessions
+
+      // ── DOM refs ──────────────────────────────────────────────────────────
+      const hamburgerBtn = document.getElementById('hamburger');
+      const sidebarEl = document.getElementById('sidebar');
+      const backdropEl = document.getElementById('sidebar-backdrop');
+      const sidebarScroll = document.getElementById('sidebar-scroll');
+      const sidebarEmpty = document.getElementById('sidebar-empty');
+      const tabbarEl = document.getElementById('tabbar');
+      const termAreaEl = document.getElementById('term-area');
+      const emptyStateEl = document.getElementById('empty-state');
+      const connDot = document.getElementById('conn-dot');
+      const connText = document.getElementById('conn-text');
+
+      // ── Mobile: move tabbar into topbar, toolbar into main ──────────────
+      if (isMobile) {
+        const topbar = document.querySelector('.topbar');
+        topbar.appendChild(tabbarEl);
+        // Move keyboard toolbar into main so it's a flex child below terminal
+        const mainEl = document.querySelector('.main');
+        const toolbarEl = document.getElementById('key-toolbar');
+        mainEl.appendChild(toolbarEl);
+      }
+
+      // ── Terminal theme ────────────────────────────────────────────────────
+      const TERM_THEME = {
+        background: '#0d1117',
+        foreground: '#e6edf3',
+        cursor: '#58a6ff',
+        selectionBackground: '#264f78',
+        black: '#484f58', red: '#ff7b72', green: '#3fb950', yellow: '#d29922',
+        blue: '#58a6ff', magenta: '#bc8cff', cyan: '#39d353', white: '#b1bac4',
+        brightBlack: '#6e7681', brightRed: '#ffa198', brightGreen: '#56d364',
+        brightYellow: '#e3b341', brightBlue: '#79c0ff', brightMagenta: '#d2a8ff',
+        brightCyan: '#56d364', brightWhite: '#f0f6fc',
+      };
+
+      // ── Helpers ───────────────────────────────────────────────────────────
+      function escHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      function shortId(id) {
+        return id.length > 8 ? id.slice(0, 8) : id;
+      }
+
+      function updateConnBadge() {
+        const n = terminals.size;
+        connText.textContent = n + ' open';
+        connDot.className = 'dot' + (n > 0 ? ' active' : '');
+      }
+
+      // ── Sidebar toggle ────────────────────────────────────────────────────
+      function updateMobileFlag() {
+        isMobile = window.innerWidth <= 640;
+      }
+
+      function openSidebar() {
+        sidebarOpen = true;
+        if (isMobile) {
+          sidebarEl.classList.add('mobile-open');
+          sidebarEl.classList.remove('collapsed');
+          backdropEl.classList.add('visible');
+        } else {
+          sidebarEl.classList.remove('collapsed');
+        }
+      }
+
+      function closeSidebar() {
+        sidebarOpen = false;
+        if (isMobile) {
+          sidebarEl.classList.remove('mobile-open');
+          backdropEl.classList.remove('visible');
+        } else {
+          sidebarEl.classList.add('collapsed');
+        }
+      }
+
+      function toggleSidebar() {
+        sidebarOpen ? closeSidebar() : openSidebar();
+      }
+
+      hamburgerBtn.addEventListener('click', toggleSidebar);
+      backdropEl.addEventListener('click', closeSidebar);
+
+      // ── Tab management ────────────────────────────────────────────────────
+      function switchTab(sessionId) {
+        if (activeId === sessionId) return;
+
+        // Deactivate current
+        if (activeId && terminals.has(activeId)) {
+          const cur = terminals.get(activeId);
+          cur.pane.classList.remove('active');
+          const curTab = tabbarEl.querySelector('[data-id="' + activeId + '"]');
+          if (curTab) curTab.classList.remove('active');
+        }
+
+        activeId = sessionId;
+
+        if (!sessionId) {
+          emptyStateEl.style.display = '';
+          return;
+        }
+
+        emptyStateEl.style.display = 'none';
+
+        const entry = terminals.get(sessionId);
+        if (!entry) return;
+
+        entry.pane.classList.add('active');
+        const tab = tabbarEl.querySelector('[data-id="' + sessionId + '"]');
+        if (tab) tab.classList.add('active');
+        if (tab) tab.classList.remove('has-activity');
+
+        // Re-fit after DOM settles
+        setTimeout(() => safeFit(entry), 30);
+        entry.term.focus();
+      }
+
+      function addTab(sessionId, name, backend) {
+        const tab = document.createElement('div');
+        tab.className = 'tab';
+        tab.dataset.id = sessionId;
+        tab.innerHTML =
+          '<span class="tab-activity"></span>' +
+          '<span class="tab-icon ' + escHtml(backend) + '">' +
+          (backend === 'tmux' ? 'T' : '&gt;_') +
+          '</span>' +
+          '<span class="tab-label">' + escHtml(name) + '</span>' +
+          '<button class="tab-close" title="Close" data-close="' + escHtml(sessionId) + '">&#x2715;</button>';
+
+        tab.addEventListener('click', function (e) {
+          if (e.target.closest('[data-close]')) return;
+          switchTab(sessionId);
+        });
+
+        tab.querySelector('[data-close]').addEventListener('click', function (e) {
+          e.stopPropagation();
+          closeTab(sessionId);
+        });
+
+        tabbarEl.appendChild(tab);
+      }
+
+      function closeTab(sessionId) {
+        const entry = terminals.get(sessionId);
+        if (!entry) return;
+
+        // Close WebSocket
+        if (entry.ws && entry.ws.readyState <= 1) {
+          entry.ws.close();
+        }
+        // Dispose terminal
+        entry.term.dispose();
+        // Remove pane
+        entry.pane.remove();
+        // Remove tab
+        const tab = tabbarEl.querySelector('[data-id="' + sessionId + '"]');
+        if (tab) tab.remove();
+
+        terminals.delete(sessionId);
+        updateConnBadge();
+        renderSidebar();
+
+        // Switch to another tab or show empty
+        if (activeId === sessionId) {
+          activeId = null;
+          const remaining = Array.from(terminals.keys());
+          if (remaining.length > 0) {
+            switchTab(remaining[remaining.length - 1]);
+          } else {
+            emptyStateEl.style.display = '';
+            if (isMobile) openSidebar();
+          }
+        }
+      }
+
+      // ── Connect to session ────────────────────────────────────────────────
+      function openSession(sessionId, name, backend) {
+        if (terminals.has(sessionId)) {
+          // Already open - just switch to it
+          switchTab(sessionId);
+          if (isMobile) closeSidebar();
+          return;
+        }
+
+        // Create pane
+        const pane = document.createElement('div');
+        pane.className = 'term-pane';
+        termAreaEl.appendChild(pane);
+
+        // Create terminal
+        const term = new Terminal({
+          fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+          fontSize: 14,
+          theme: TERM_THEME,
+          cursorBlink: true,
+          allowProposedApi: true,
+        });
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+
+        term.open(pane);
+        term.loadAddon(new WebLinksAddon.WebLinksAddon());
+
+        // Suppress iOS autofill/autocomplete/autocorrect on the xterm textarea.
+        const textarea = pane.querySelector('.xterm-helper-textarea');
+        if (textarea) {
+          textarea.setAttribute('autocomplete', 'one-time-code');
+          textarea.setAttribute('autocorrect', 'off');
+          textarea.setAttribute('autocapitalize', 'off');
+          textarea.setAttribute('spellcheck', 'false');
+          textarea.setAttribute('enterkeyhint', 'send');
+          textarea.setAttribute('data-1p-ignore', '');
+          textarea.setAttribute('data-lpignore', 'true');
+          textarea.setAttribute('data-form-type', 'other');
+          textarea.setAttribute('aria-hidden', 'true');
+          textarea.setAttribute('role', 'none');
+        }
+
+        // Touch scroll: translate touch swipes into xterm scrolling with momentum
+        if (isMobile) {
+          let touchStartY = 0;
+          let accumulated = 0;
+          let isTap = true;
+          let velocity = 0;
+          let lastMoveTime = 0;
+          let momentumId = 0;
+          const screen = pane.querySelector('.xterm-screen');
+          if (screen) {
+            screen.addEventListener('touchstart', (e) => {
+              touchStartY = e.touches[0].clientY;
+              accumulated = 0;
+              velocity = 0;
+              lastMoveTime = Date.now();
+              isTap = true;
+              cancelAnimationFrame(momentumId);
+            }, { passive: true });
+            screen.addEventListener('touchmove', (e) => {
+              const now = Date.now();
+              const dt = now - lastMoveTime || 1;
+              const dy = touchStartY - e.touches[0].clientY;
+              touchStartY = e.touches[0].clientY;
+              lastMoveTime = now;
+              velocity = dy / dt;
+              accumulated += dy;
+              const lines = Math.trunc(accumulated / 4);
+              if (lines !== 0) {
+                term.scrollLines(lines);
+                accumulated -= lines * 4;
+                isTap = false;
+              }
+              e.preventDefault();
+            }, { passive: false });
+            screen.addEventListener('touchend', () => {
+              if (isTap) {
+                // Only act if keyboard is not already open
+                const kbOpen = window.visualViewport &&
+                  (window.visualViewport.height / window.innerHeight) < 0.75;
+                if (!kbOpen) {
+                  term.scrollToBottom();
+                  term.focus();
+                }
+                return;
+              }
+              // Momentum scroll
+              let v = velocity * 8;
+              let acc = 0;
+              function coast() {
+                v *= 0.95;
+                if (Math.abs(v) < 0.3) return;
+                acc += v;
+                const lines = Math.trunc(acc);
+                if (lines !== 0) {
+                  term.scrollLines(lines);
+                  acc -= lines;
+                }
+                momentumId = requestAnimationFrame(coast);
+              }
+              momentumId = requestAnimationFrame(coast);
+            }, { passive: true });
+          }
+        }
+
+        const entry = { term, fitAddon, ws: null, pane, name, backend };
+        terminals.set(sessionId, entry);
+
+        addTab(sessionId, name, backend);
+        updateConnBadge();
+
+        // Connect WebSocket (with auto-reconnect)
+        function connectWs() {
+          const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const ws = new WebSocket(proto + '//' + location.host + '?session=' + encodeURIComponent(sessionId));
+          ws.binaryType = 'arraybuffer';
+          entry.ws = ws;
+
+          ws.onopen = () => {
+            sendResize(entry, term.cols, term.rows);
+            renderSidebar();
+          };
+
+          ws.onmessage = (e) => {
+            if (typeof e.data === 'string') {
+              term.write(e.data);
+              return;
+            }
+            const data = new Uint8Array(e.data);
+            if (data.length > 1 && data[0] === 0x01) {
+              try {
+                const msg = JSON.parse(new TextDecoder().decode(data.slice(1)));
+                if (msg.type === 'resize_request') {
+                  sendResize(entry, term.cols, term.rows);
+                }
+              } catch (_) { }
+              return;
+            }
+            term.write(data);
+            // Mark tab as having activity if this isn't the active tab
+            if (activeId !== sessionId) {
+              const tab = tabbarEl.querySelector('[data-id="' + sessionId + '"]');
+              if (tab) tab.classList.add('has-activity');
+            }
+          };
+
+          ws.onclose = () => {
+            entry.ws = null;
+            renderSidebar();
+            // Auto-reconnect after 2s if tab is still open
+            if (terminals.has(sessionId)) {
+              term.write('\r\n\x1b[90m[reconnecting...]\x1b[0m\r\n');
+              setTimeout(() => {
+                if (terminals.has(sessionId)) connectWs();
+              }, 2000);
+            }
+          };
+
+          ws.onerror = () => { };
+        }
+        connectWs();
+
+        term.onData(data => {
+          if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+            entry.ws.send(new TextEncoder().encode(data));
+          }
+        });
+
+        term.onResize(({ cols, rows }) => sendResize(entry, cols, rows));
+
+        // Switch to this tab
+        switchTab(sessionId);
+        // Fit after mount
+        setTimeout(() => { safeFit(entry); term.focus(); }, 50);
+
+        if (isMobile) closeSidebar();
+      }
+
+      // ── SafeFit ───────────────────────────────────────────────────────────
+      function safeFit(entry) {
+        if (!entry || !entry.fitAddon || !entry.term) return;
+        try {
+          const dims = entry.fitAddon.proposeDimensions();
+          if (dims && dims.cols > 0 && dims.rows > 1) {
+            entry.term.resize(dims.cols, dims.rows - 1);
+          }
+        } catch (_) { }
+      }
+
+      function safeFitActive() {
+        if (activeId && terminals.has(activeId)) {
+          safeFit(terminals.get(activeId));
+        }
+      }
+
+      // ── Resize ────────────────────────────────────────────────────────────
+      function sendResize(entry, cols, rows) {
+        if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+          const msg = JSON.stringify({ type: 'resize', cols, rows });
+          const payload = new Uint8Array(1 + msg.length);
+          payload[0] = 0x01;
+          payload.set(new TextEncoder().encode(msg), 1);
+          entry.ws.send(payload);
+        }
+      }
+
+      window.addEventListener('resize', () => {
+        updateMobileFlag();
+        safeFitActive();
+      });
+
+      // Handle mobile virtual keyboard showing/hiding - resize the entire app
+      // to fit the visible area so content isn't hidden behind the keyboard.
+      if (window.visualViewport) {
+        const shellEl = document.querySelector('.shell');
+        let resizeTimer = null;
+        let lastVpHeight = window.visualViewport.height;
+
+        function handleViewportResize() {
+          const vv = window.visualViewport;
+          const h = vv.height;
+          // Pin everything to the visual viewport
+          document.documentElement.style.height = h + 'px';
+          document.body.style.height = h + 'px';
+          const topbarH = isMobile ? 36 : 48;
+          if (shellEl) {
+            shellEl.style.height = (h - topbarH) + 'px';
+          }
+          lastVpHeight = h;
+        }
+
+        window.visualViewport.addEventListener('resize', () => {
+          // Always update layout immediately so the shell doesn't overflow
+          handleViewportResize();
+          // Debounce the terminal refit to avoid resetting xterm scroll position
+          // during keyboard animation frames
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            safeFitActive();
+          }, 150);
+        });
+        // Do NOT listen to visualViewport 'scroll' - it interferes with
+        // xterm's internal scroll position on iOS
+        handleViewportResize(); // initial positioning
+      }
+
+      // Reconnect all disconnected tabs when page becomes visible (phone wake)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          terminals.forEach((entry, id) => {
+            if (!entry.ws || entry.ws.readyState !== WebSocket.OPEN) {
+              const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+              const ws = new WebSocket(proto + '//' + location.host + '?session=' + encodeURIComponent(id));
+              ws.binaryType = 'arraybuffer';
+              entry.ws = ws;
+              ws.onopen = () => {
+                sendResize(entry, entry.term.cols, entry.term.rows);
+                renderSidebar();
+              };
+              ws.onmessage = (e) => {
+                if (typeof e.data === 'string') {
+                  entry.term.write(e.data);
+                  return;
+                }
+                const data = new Uint8Array(e.data);
+                if (data.length > 1 && data[0] === 0x01) {
+                  try {
+                    const msg = JSON.parse(new TextDecoder().decode(data.slice(1)));
+                    if (msg.type === 'resize_request') {
+                      sendResize(entry, entry.term.cols, entry.term.rows);
+                    }
+                  } catch (_) { }
+                  return;
+                }
+                entry.term.write(data);
+                // Mark tab as having activity if this isn't the active tab
+                if (activeId !== id) {
+                  const tab = tabbarEl.querySelector('[data-id="' + id + '"]');
+                  if (tab) tab.classList.add('has-activity');
+                }
+              };
+              ws.onclose = () => {
+                entry.ws = null;
+                renderSidebar();
+              };
+              ws.onerror = () => { };
+            }
+          });
+          safeFitActive();
+        }
+      });
+
+      // ── Sidebar rendering ─────────────────────────────────────────────────
+      function renderSidebar() {
+        // Group sessions by backend
+        const groups = {};
+        sessions.forEach(s => {
+          if (!groups[s.backend]) groups[s.backend] = [];
+          groups[s.backend].push(s);
+        });
+
+        const order = ['native', 'tmux'];
+        const labels = { native: 'Native', tmux: 'tmux' };
+        const icons = { native: '&gt;_', tmux: 'T' };
+
+        // Remove existing group nodes (keep sidebar-empty)
+        const existing = sidebarScroll.querySelectorAll('.group-header, .session-row');
+        existing.forEach(el => el.remove());
+
+        if (sessions.length === 0) {
+          sidebarEmpty.style.display = '';
+          return;
+        }
+        sidebarEmpty.style.display = 'none';
+
+        // Render groups in order; anything not in order appended at end
+        const toRender = [...order, ...Object.keys(groups).filter(k => !order.includes(k))];
+
+        toRender.forEach(backend => {
+          const list = groups[backend];
+          if (!list || list.length === 0) return;
+
+          const header = document.createElement('div');
+          header.className = 'group-header';
+          header.innerHTML =
+            escHtml(labels[backend] || backend) +
+            '<span class="count">' + list.length + '</span>';
+          sidebarScroll.appendChild(header);
+
+          list.forEach(s => {
+            const isOpen = terminals.has(s.id);
+            const entry = terminals.get(s.id);
+            const isConnected = isOpen && entry.ws && entry.ws.readyState === WebSocket.OPEN;
+
+            const row = document.createElement('div');
+            row.className = 'session-row' + (isOpen ? ' open' : '');
+            row.innerHTML =
+              '<div class="session-icon ' + escHtml(s.backend) + '">' +
+              (icons[s.backend] || '?') +
+              '</div>' +
+              '<div class="session-info">' +
+              '<div class="session-name">' + escHtml(s.name) + '</div>' +
+              '<div class="session-meta">' + escHtml(s.cwd ? '~/' + s.cwd.split('/').slice(-2).join('/') : shortId(s.id)) + '</div>' +
+              '</div>' +
+              '<div class="session-status' + (isConnected ? ' connected' : '') + '"></div>';
+
+            row.addEventListener('click', (e) => { e.stopPropagation(); openSession(s.id, s.name, s.backend); });
+            sidebarScroll.appendChild(row);
+          });
+        });
+      }
+
+      // ── Session polling ───────────────────────────────────────────────────
+      function fetchSessions() {
+        fetch('/api/sessions')
+          .then(r => r.json())
+          .then(data => {
+            sessions = data;
+            renderSidebar();
+          })
+          .catch(() => {
+            // Keep last known list on error
+          });
+      }
+
+      fetchSessions();
+      setInterval(fetchSessions, 5000);
+
+      // On mobile, auto-open sidebar if no tabs are open
+      if (isMobile && terminals.size === 0) {
+        openSidebar();
+      }
+
+      // -- Mobile keyboard toolbar -------------------------------------------
+      if (isMobile) {
+        const toolbar = document.getElementById('key-toolbar');
+        const toolbarMain = document.getElementById('toolbar-main');
+        const toolbarCtrl = document.getElementById('toolbar-ctrl');
+        const ctrlBtn = document.getElementById('ctrl-btn');
+        const ctrlBack = document.getElementById('ctrl-back');
+
+        // Prevent toolbar from stealing focus (closing keyboard)
+        toolbar.addEventListener('mousedown', (e) => { e.preventDefault(); });
+
+        const keyMap = {
+          'Escape': '\x1b',
+          'Tab': '\t',
+          'Ctrl+A': '\x01',
+          'Ctrl+C': '\x03',
+          'Ctrl+D': '\x04',
+          'Ctrl+E': '\x05',
+          'Ctrl+L': '\x0c',
+          'Ctrl+Z': '\x1a',
+          'ArrowUp': '\x1b[A',
+          'ArrowDown': '\x1b[B',
+          'ArrowRight': '\x1b[C',
+          'ArrowLeft': '\x1b[D',
+        };
+
+        function refocusTerm() {
+          if (activeId && terminals.has(activeId)) {
+            setTimeout(() => terminals.get(activeId).term.focus(), 50);
+          }
+        }
+
+        function showCtrlPanel() {
+          toolbarMain.style.visibility = 'hidden';
+          toolbarMain.style.position = 'absolute';
+          toolbarCtrl.style.display = 'flex';
+          toolbarCtrl.style.visibility = 'visible';
+          toolbarCtrl.style.position = 'static';
+        }
+        function showMainPanel() {
+          toolbarCtrl.style.visibility = 'hidden';
+          toolbarCtrl.style.position = 'absolute';
+          toolbarCtrl.style.display = '';
+          toolbarMain.style.visibility = 'visible';
+          toolbarMain.style.position = 'static';
+        }
+
+        ctrlBtn.addEventListener('click', showCtrlPanel);
+        ctrlBack.addEventListener('click', showMainPanel);
+
+        toolbar.addEventListener('click', (e) => {
+          const btn = e.target.closest('.key-btn');
+          if (!btn || btn === ctrlBtn || btn === ctrlBack || !activeId) return;
+          const entry = terminals.get(activeId);
+          if (!entry || !entry.ws || entry.ws.readyState !== WebSocket.OPEN) return;
+
+          if (btn.dataset.action === 'paste') {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+              navigator.clipboard.readText().then(text => {
+                if (text) entry.ws.send(new TextEncoder().encode(text));
+              }).catch(() => {
+                entry.term.write('\r\n\x1b[33m[Clipboard access denied - check browser permissions]\x1b[0m\r\n');
+              });
+            }
+            return;
+          }
+
+          const seq = keyMap[btn.dataset.key];
+          if (seq) {
+            entry.ws.send(new TextEncoder().encode(seq));
+            // After sending a Ctrl combo, switch back to main toolbar
+            if (btn.dataset.key && btn.dataset.key.startsWith('Ctrl+')) {
+              showMainPanel();
+            }
+            refocusTerm();
+          }
+        });
+      }
+
+      // -- Swipe between tabs (mobile) ----------------------------------------
+      if (isMobile) {
+        let swipeStartX = 0;
+        let swipeStartY = 0;
+        let swiping = false;
+
+        termAreaEl.addEventListener('touchstart', (e) => {
+          if (e.touches.length !== 1) return;
+          swipeStartX = e.touches[0].clientX;
+          swipeStartY = e.touches[0].clientY;
+          swiping = true;
+        }, { passive: true });
+
+        termAreaEl.addEventListener('touchmove', (e) => {
+          if (!swiping) return;
+          const dx = e.touches[0].clientX - swipeStartX;
+          const dy = e.touches[0].clientY - swipeStartY;
+          if (Math.abs(dy) > Math.abs(dx)) swiping = false;
+        }, { passive: true });
+
+        termAreaEl.addEventListener('touchend', (e) => {
+          if (!swiping) return;
+          swiping = false;
+          const dx = e.changedTouches[0].clientX - swipeStartX;
+          if (Math.abs(dx) < 80) return;
+          const ids = Array.from(terminals.keys());
+          if (ids.length < 2 || !activeId) return;
+          const curIdx = ids.indexOf(activeId);
+          if (curIdx === -1) return;
+          if (dx < 0) {
+            switchTab(ids[(curIdx + 1) % ids.length]);
+          } else {
+            switchTab(ids[(curIdx - 1 + ids.length) % ids.length]);
+          }
+        }, { passive: true });
+      }
+
+      // -- Pinch-to-zoom font size (mobile) -----------------------------------
+      if (isMobile) {
+        let pinchStartDist = 0;
+        let baseFontSize = 14;
+
+        function getPinchDist(touches) {
+          const dx = touches[0].clientX - touches[1].clientX;
+          const dy = touches[0].clientY - touches[1].clientY;
+          return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        termAreaEl.addEventListener('touchstart', (e) => {
+          if (e.touches.length === 2) {
+            pinchStartDist = getPinchDist(e.touches);
+            if (activeId && terminals.has(activeId)) {
+              baseFontSize = terminals.get(activeId).term.options.fontSize;
+            }
+          }
+        }, { passive: true });
+
+        termAreaEl.addEventListener('touchmove', (e) => {
+          if (e.touches.length !== 2 || !activeId) return;
+          e.preventDefault();
+          const dist = getPinchDist(e.touches);
+          const scale = dist / pinchStartDist;
+          const newSize = Math.round(Math.min(28, Math.max(8, baseFontSize * scale)));
+          const entry = terminals.get(activeId);
+          if (entry && entry.term.options.fontSize !== newSize) {
+            entry.term.options.fontSize = newSize;
+            safeFit(entry);
+          }
+        }, { passive: false });
+      }
+
+    })();
+  </script>
+</body>
+
+</html>

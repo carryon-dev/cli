@@ -1,0 +1,59 @@
+name: Auto Tag on Release PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release:patch') || contains(github.event.pull_request.labels.*.name, 'release:minor') || contains(github.event.pull_request.labels.*.name, 'release:major'))
+    runs-on: ubuntu-latest
+    steps:
+      # Use PAT so the tag push triggers the release workflow.
+      # GITHUB_TOKEN actions don't trigger downstream workflows.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Determine bump type
+        id: bump
+        run: |
+          if echo '${{ toJSON(github.event.pull_request.labels.*.name) }}' | grep -q 'release:major'; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo '${{ toJSON(github.event.pull_request.labels.*.name) }}' | grep -q 'release:minor'; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump version
+        id: version
+        run: |
+          current=$(cat VERSION | tr -d '[:space:]')
+          IFS='.' read -r major minor patch <<< "$current"
+
+          case "${{ steps.bump.outputs.type }}" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+
+          new="${major}.${minor}.${patch}"
+          echo "$new" > VERSION
+          echo "version=v${new}" >> "$GITHUB_OUTPUT"
+          echo "Bumped $current → $new (${{ steps.bump.outputs.type }})"
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION
+          git commit -m "release: ${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag "${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.version }}"

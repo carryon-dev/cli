@@ -1,0 +1,45 @@
+name: Auto PR from dev
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      - name: Create or update PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing=$(gh pr list --base main --head dev --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$existing" ]; then
+            echo "PR #$existing already exists - push will trigger CI on it"
+          else
+            commits=$(git log origin/main..HEAD --oneline)
+            gh pr create \
+              --base main \
+              --head dev \
+              --title "dev → main" \
+              --body "$(cat <<EOF
+          ## Changes
+
+          $(echo "$commits" | sed 's/^/- /')
+
+          ---
+          *Auto-opened from \`dev\` branch push.*
+          EOF
+          )"
+          fi
