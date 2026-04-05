@@ -12,7 +12,7 @@
   <meta name="theme-color" content="#0d1117">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="https://carryon.dev/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.min.css">
@@ -446,6 +446,47 @@
       display: flex;
     }
 
+    .reconnect-overlay {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--border);
+      color: var(--text-muted);
+      font-size: 14px;
+      padding: 8px 18px;
+      border-radius: 16px;
+      z-index: 10;
+      display: none;
+      align-items: baseline;
+      gap: 5px;
+      pointer-events: none;
+    }
+
+    .reconnect-overlay.visible {
+      display: flex;
+    }
+
+    .reconnect-overlay .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #4ecdc4;
+      display: inline-block;
+      position: relative;
+      top: -1px;
+      animation: reconnect-dot 1.4s ease-in-out infinite;
+    }
+
+    .reconnect-overlay .dot:nth-child(1) { opacity: 0.85; }
+    .reconnect-overlay .dot:nth-child(2) { opacity: 0.45; animation-delay: 0.2s; }
+    .reconnect-overlay .dot:nth-child(3) { opacity: 0.2; animation-delay: 0.4s; }
+
+    @keyframes reconnect-dot {
+      0%, 80%, 100% { opacity: 0.25; }
+      40% { opacity: 1; }
+    }
+
     .term-pane .xterm {
       flex: 1;
     }
@@ -794,6 +835,25 @@
       let isMobile = window.innerWidth <= 640;
       let sessions = []; // latest from /api/sessions
 
+      // ── Tab persistence (localStorage) ────────────────────────────────────
+      const LS_KEY = 'carryon-open-tabs';
+      function saveTabState() {
+        const state = {
+          tabs: Array.from(terminals.keys()),
+          active: activeId,
+        };
+        try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (_) { }
+      }
+      function loadTabState() {
+        try {
+          const raw = localStorage.getItem(LS_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch (_) { return null; }
+      }
+      function clearTabState() {
+        try { localStorage.removeItem(LS_KEY); } catch (_) { }
+      }
+
       // ── DOM refs ──────────────────────────────────────────────────────────
       const hamburgerBtn = document.getElementById('hamburger');
       const sidebarEl = document.getElementById('sidebar');
@@ -911,6 +971,7 @@
         // Re-fit after DOM settles
         setTimeout(() => safeFit(entry), 30);
         entry.term.focus();
+        saveTabState();
       }
 
       function addTab(sessionId, name, backend) {
@@ -969,6 +1030,7 @@
             if (isMobile) openSidebar();
           }
         }
+        saveTabState();
       }
 
       // ── Connect to session ────────────────────────────────────────────────
@@ -983,6 +1045,10 @@
         // Create pane
         const pane = document.createElement('div');
         pane.className = 'term-pane';
+        const reconnectOverlay = document.createElement('div');
+        reconnectOverlay.className = 'reconnect-overlay';
+        reconnectOverlay.innerHTML = 'Reconnecting<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+        pane.appendChild(reconnectOverlay);
         termAreaEl.appendChild(pane);
 
         // Create terminal
@@ -999,7 +1065,7 @@
         term.open(pane);
         term.loadAddon(new WebLinksAddon.WebLinksAddon());
 
-        // Suppress iOS autofill/autocomplete/autocorrect on the xterm textarea.
+        // Suppress autofill/autocorrect on the xterm textarea.
         const textarea = pane.querySelector('.xterm-helper-textarea');
         if (textarea) {
           textarea.setAttribute('autocomplete', 'one-time-code');
@@ -1078,25 +1144,30 @@
           }
         }
 
-        const entry = { term, fitAddon, ws: null, pane, name, backend };
+        const entry = { term, fitAddon, ws: null, pane, reconnectOverlay, name, backend };
         terminals.set(sessionId, entry);
 
         addTab(sessionId, name, backend);
         updateConnBadge();
 
         // Connect WebSocket (with auto-reconnect)
+        let reconnectFails = 0;
         function connectWs() {
           const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
           const ws = new WebSocket(proto + '//' + location.host + '?session=' + encodeURIComponent(sessionId));
           ws.binaryType = 'arraybuffer';
           entry.ws = ws;
+          let receivedData = false;
 
           ws.onopen = () => {
+            reconnectFails = 0;
+            reconnectOverlay.classList.remove('visible');
             sendResize(entry, term.cols, term.rows);
             renderSidebar();
           };
 
           ws.onmessage = (e) => {
+            receivedData = true;
             if (typeof e.data === 'string') {
               term.write(e.data);
               return;
@@ -1122,13 +1193,36 @@
           ws.onclose = () => {
             entry.ws = null;
             renderSidebar();
-            // Auto-reconnect after 2s if tab is still open
-            if (terminals.has(sessionId)) {
-              term.write('\r\n\x1b[90m[reconnecting...]\x1b[0m\r\n');
-              setTimeout(() => {
-                if (terminals.has(sessionId)) connectWs();
-              }, 2000);
+            if (!terminals.has(sessionId)) return;
+
+            // If the connection was accepted but closed immediately without
+            // sending any data, the session likely no longer exists (server
+            // restarted). After a few rapid failures, check if the server is
+            // still up and reload the page so stale tabs are cleared.
+            if (!receivedData) reconnectFails++;
+            if (reconnectFails >= 3) {
+              fetch('/api/sessions').then(r => {
+                if (r.redirected || r.status === 401) {
+                  // Auth expired or server restarted - go to login
+                  location.href = '/login';
+                } else {
+                  // Server is up but this session is gone - reload to refresh
+                  location.reload();
+                }
+              }).catch(() => {
+                // Server not reachable yet - keep trying
+                reconnectOverlay.classList.add('visible');
+                setTimeout(() => {
+                  if (terminals.has(sessionId)) connectWs();
+                }, 2000);
+              });
+              return;
             }
+
+            reconnectOverlay.classList.add('visible');
+            setTimeout(() => {
+              if (terminals.has(sessionId)) connectWs();
+            }, 2000);
           };
 
           ws.onerror = () => { };
@@ -1338,13 +1432,40 @@
           });
       }
 
-      fetchSessions();
-      setInterval(fetchSessions, 5000);
+      // Initial fetch + restore saved tabs
+      fetch('/api/sessions')
+        .then(r => r.json())
+        .then(data => {
+          sessions = data;
+          renderSidebar();
 
-      // On mobile, auto-open sidebar if no tabs are open
-      if (isMobile && terminals.size === 0) {
-        openSidebar();
-      }
+          // Restore previously open tabs from localStorage
+          const saved = loadTabState();
+          if (saved && saved.tabs && saved.tabs.length > 0) {
+            const available = new Map(data.map(s => [s.id, s]));
+            // Open tabs that still exist on the server
+            const validTabs = saved.tabs.filter(id => available.has(id));
+            validTabs.forEach(id => {
+              const s = available.get(id);
+              openSession(s.id, s.name, s.backend);
+            });
+            // Switch to the previously active tab if it's still valid
+            if (saved.active && terminals.has(saved.active)) {
+              switchTab(saved.active);
+            }
+            // Clean up stale entries
+            if (validTabs.length !== saved.tabs.length) {
+              saveTabState();
+            }
+          }
+
+          // On mobile, auto-open sidebar if no tabs ended up open
+          if (isMobile && terminals.size === 0) {
+            openSidebar();
+          }
+        })
+        .catch(() => {});
+      setInterval(fetchSessions, 5000);
 
       // -- Mobile keyboard toolbar -------------------------------------------
       if (isMobile) {
