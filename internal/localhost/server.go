@@ -38,12 +38,6 @@ var loginHTML string
 //go:embed web/manifest.json
 var manifestJSON []byte
 
-//go:embed web/icon-192.png
-var icon192 []byte
-
-//go:embed web/icon-512.png
-var icon512 []byte
-
 var loginTmpl = template.Must(template.New("login").Parse(loginHTML))
 
 // LocalhostServer serves an embedded web UI over HTTP (or HTTPS when
@@ -117,14 +111,6 @@ func (s *LocalhostServer) Start() error {
 	mux.HandleFunc("/manifest.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/manifest+json")
 		w.Write(manifestJSON)
-	})
-	mux.HandleFunc("/icon-192.png", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/png")
-		w.Write(icon192)
-	})
-	mux.HandleFunc("/icon-512.png", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/png")
-		w.Write(icon512)
 	})
 
 	addr := fmt.Sprintf("%s:%d", s.bind, s.port)
@@ -482,6 +468,7 @@ func (s *LocalhostServer) handleLoginPost(w http.ResponseWriter, r *http.Request
 		Name:     "carryon-session",
 		Value:    token,
 		Path:     "/",
+		MaxAge:   86400, // 24 hours - match server-side session TTL
 		HttpOnly: true,
 		Secure:   s.useTLS,
 		SameSite: http.SameSiteStrictMode,

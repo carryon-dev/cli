@@ -650,37 +650,36 @@ func TestScrollback(t *testing.T) {
 // Project integration tests
 // ---------------------------------------------------------------------------
 
-func TestProjectAssociateAndTerminals(t *testing.T) {
+func TestProjectTerminalsCwdMatching(t *testing.T) {
 	client, baseDir, cleanup := setupTestDaemon(t)
 	defer cleanup()
-
-	id := createSession(t, client, "project-session")
 
 	projectPath := filepath.Join(baseDir, "proj")
 	if err := os.MkdirAll(projectPath, 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	// Associate
-	assocResult := callResult(t, client, "project.associate", map[string]any{
-		"path":      projectPath,
-		"sessionId": id,
+	// Create a session with cwd inside the project
+	sessResult := callResult(t, client, "session.create", map[string]any{
+		"name": "project-session",
+		"cwd":  projectPath,
 	})
-	if assocResult["ok"] != true {
-		t.Fatal("project.associate should return ok=true")
+	id, _ := sessResult["id"].(string)
+	if id == "" {
+		t.Fatal("expected session id in create result")
 	}
 
-	// Get terminals
+	// project.terminals should return it under "matched"
 	termResult := callResult(t, client, "project.terminals", map[string]any{
 		"path": projectPath,
 	})
 
-	associated, ok := termResult["associated"].([]any)
+	matched, ok := termResult["matched"].([]any)
 	if !ok {
-		t.Fatalf("expected associated to be array, got %T", termResult["associated"])
+		t.Fatalf("expected matched to be array, got %T", termResult["matched"])
 	}
-	if findSession(associated, id) == nil {
-		t.Fatal("associated session not found in project.terminals result")
+	if findSession(matched, id) == nil {
+		t.Fatal("cwd-matched session not found in project.terminals result")
 	}
 }
 
@@ -1093,72 +1092,6 @@ func TestSetPasswordRPC(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error for short password")
-	}
-}
-
-func TestProjectDisassociate(t *testing.T) {
-	baseDir := shortTempDir(t)
-	shutdown, err := daemon.StartDaemon(daemon.DaemonOptions{BaseDir: baseDir, InProcess: true})
-	if err != nil {
-		t.Fatalf("start daemon: %v", err)
-	}
-	defer shutdown()
-
-	socketPath := daemon.GetSocketPath(baseDir)
-	client := ipc.NewClient()
-	if err := client.Connect(socketPath); err != nil {
-		t.Fatalf("connect: %v", err)
-	}
-	defer client.Disconnect()
-
-	// Create a session
-	sess, err := client.Call("session.create", map[string]any{"name": "disassoc-test"})
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	sm := sess.(map[string]any)
-	sessionID := sm["id"].(string)
-
-	projectPath := filepath.Join(os.TempDir(), "test-disassoc-project")
-
-	// Associate
-	_, err = client.Call("project.associate", map[string]any{
-		"path":      projectPath,
-		"sessionId": sessionID,
-	})
-	if err != nil {
-		t.Fatalf("associate: %v", err)
-	}
-
-	// Verify associated
-	result, err := client.Call("project.terminals", map[string]any{"path": projectPath})
-	if err != nil {
-		t.Fatalf("terminals: %v", err)
-	}
-	rm := result.(map[string]any)
-	associated, _ := rm["associated"].([]any)
-	if len(associated) != 1 {
-		t.Fatalf("expected 1 associated session, got %d", len(associated))
-	}
-
-	// Disassociate
-	_, err = client.Call("project.disassociate", map[string]any{
-		"path":      projectPath,
-		"sessionId": sessionID,
-	})
-	if err != nil {
-		t.Fatalf("disassociate: %v", err)
-	}
-
-	// Verify disassociated
-	result, err = client.Call("project.terminals", map[string]any{"path": projectPath})
-	if err != nil {
-		t.Fatalf("terminals after disassociate: %v", err)
-	}
-	rm = result.(map[string]any)
-	associated, _ = rm["associated"].([]any)
-	if len(associated) != 0 {
-		t.Fatalf("expected 0 associated sessions after disassociate, got %d", len(associated))
 	}
 }
 

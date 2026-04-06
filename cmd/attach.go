@@ -14,14 +14,24 @@ import (
 
 func newAttachCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "attach <session>",
+		Use:   "attach [session]",
 		Short: "Attach to an existing session",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return withClient(func(client *ipc.Client) error {
-				sessionID, err := resolveSession(client, args[0])
-				if err != nil {
-					return err
+				var sessionID string
+				if len(args) > 0 {
+					id, err := resolveSession(client, args[0])
+					if err != nil {
+						return err
+					}
+					sessionID = id
+				} else {
+					candidate, err := pickOrResolveSession(client)
+					if err != nil {
+						return err
+					}
+					sessionID = candidate.ID
 				}
 				return interactiveAttach(client, sessionID)
 			})
