@@ -162,7 +162,11 @@ func pickSession(input string, candidates []resolveCandidate) (string, error) {
 	render := func() {
 		// Move cursor to start and clear from here down.
 		fmt.Fprintf(os.Stderr, "\r\033[J")
-		fmt.Fprintf(os.Stderr, "Multiple sessions named %s:\r\n\r\n", styleAccent(input))
+		if input == "" {
+			fmt.Fprintf(os.Stderr, "Select a session:\r\n\r\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "Multiple sessions named %s:\r\n\r\n", styleAccent(input))
+		}
 		for i, c := range shown {
 			arrow := "  "
 			if i == selected {

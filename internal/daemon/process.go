@@ -94,9 +94,6 @@ func StartDaemon(opts DaemonOptions) (shutdown func(), err error) {
 		}
 	}
 
-	// Project associations
-	projects := state.NewProjectAssociations(stateDir)
-
 	// Persist native sessions on create/end
 	sessionManager.OnSessionCreated(func(sess backend.Session) {
 		if sess.Backend == "native" {
@@ -130,7 +127,6 @@ func StartDaemon(opts DaemonOptions) (shutdown func(), err error) {
 		Logger:         logger,
 		LogStore:       logStore,
 		Registry:       registry,
-		Projects:       projects,
 		StartTime:      time.Now(),
 		BaseDir:        baseDir,
 	}

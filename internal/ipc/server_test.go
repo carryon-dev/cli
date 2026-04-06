@@ -16,7 +16,6 @@ import (
 	"github.com/carryon-dev/cli/internal/config"
 	"github.com/carryon-dev/cli/internal/logging"
 	"github.com/carryon-dev/cli/internal/session"
-	"github.com/carryon-dev/cli/internal/state"
 )
 
 // mockRemoteService implements RemoteService for testing.
@@ -148,7 +147,6 @@ func setupTestContext(t *testing.T) *RpcContext {
 	logger := logging.NewLogger(logStore, "debug")
 	cfgMgr := config.NewManager(filepath.Join(tmpDir, "config"))
 	sessionMgr := session.NewManager(registry, "native")
-	projects := state.NewProjectAssociations(filepath.Join(tmpDir, "state"))
 
 	return &RpcContext{
 		SessionManager: sessionMgr,
@@ -156,7 +154,6 @@ func setupTestContext(t *testing.T) *RpcContext {
 		Logger:         logger,
 		LogStore:       logStore,
 		Registry:       registry,
-		Projects:       projects,
 		StartTime:      time.Now(),
 		BaseDir:        tmpDir,
 	}

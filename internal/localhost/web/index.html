@@ -1229,8 +1229,20 @@
         }
         connectWs();
 
+        // iOS dictation fires both input and compositionend, causing xterm
+        // to emit the same text twice via onData. Deduplicate by suppressing
+        // the second identical emission within a short window.
+        let lastData = '';
+        let lastDataTime = 0;
         term.onData(data => {
           if (entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+            const now = Date.now();
+            if (data.length > 1 && data === lastData && now - lastDataTime < 100) {
+              // Skip duplicate from dictation double-fire
+              return;
+            }
+            lastData = data;
+            lastDataTime = now;
             entry.ws.send(new TextEncoder().encode(data));
           }
         });

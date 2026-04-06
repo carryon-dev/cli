@@ -13,9 +13,9 @@ import (
 	"github.com/carryon-dev/cli/internal/config"
 	"github.com/carryon-dev/cli/internal/holder"
 	"github.com/carryon-dev/cli/internal/logging"
+	"github.com/carryon-dev/cli/internal/pathutil"
 	"github.com/carryon-dev/cli/internal/project"
 	"github.com/carryon-dev/cli/internal/session"
-	"github.com/carryon-dev/cli/internal/state"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -47,7 +47,6 @@ type RpcContext struct {
 	Logger         *logging.Logger
 	LogStore       *logging.Store
 	Registry       *backend.Registry
-	Projects       *state.ProjectAssociations
 	StartTime      time.Time
 	BaseDir        string
 
@@ -95,9 +94,7 @@ func buildMethods() map[string]RpcHandler {
 		"daemon.status":    daemonStatus,
 		"daemon.logs":      daemonLogs,
 		"project.terminals": projectTerminals,
-		"project.associate":    projectAssociate,
-		"project.disassociate": projectDisassociate,
-		"remote.status":        remoteStatus,
+		"remote.status":     remoteStatus,
 		"remote.devices":       remoteDevices,
 		"local.set-password":   localSetPassword,
 		"subscribe.cancel":     subscribeCancel,
@@ -626,17 +623,13 @@ func projectTerminals(params map[string]any, ctx *RpcContext) (RpcResult, error)
 		return RpcResult{}, fmt.Errorf("missing required parameter: path")
 	}
 
-	associations := ctx.Projects.GetForProject(projectPath)
 	allSessions := ctx.SessionManager.List()
 
-	// Ad-hoc associated sessions
-	associatedSessions := make([]backend.Session, 0)
-	for _, a := range associations.Associated {
-		for _, s := range allSessions {
-			if s.ID == a.SessionID {
-				associatedSessions = append(associatedSessions, s)
-				break
-			}
+	// Match sessions by cwd prefix
+	matched := make([]backend.Session, 0)
+	for _, s := range allSessions {
+		if s.Cwd != "" && pathutil.IsUnderPath(s.Cwd, projectPath) {
+			matched = append(matched, s)
 		}
 	}
 
@@ -648,39 +641,9 @@ func projectTerminals(params map[string]any, ctx *RpcContext) (RpcResult, error)
 	}
 
 	return RpcResult{Value: map[string]any{
-		"declared":   declared,
-		"associated": associatedSessions,
+		"declared": declared,
+		"matched":  matched,
 	}}, nil
-}
-
-func projectAssociate(params map[string]any, ctx *RpcContext) (RpcResult, error) {
-	path, ok := params["path"].(string)
-	if !ok || path == "" {
-		return RpcResult{}, fmt.Errorf("missing required parameter: path")
-	}
-	sessionID, ok := params["sessionId"].(string)
-	if !ok || sessionID == "" {
-		return RpcResult{}, fmt.Errorf("missing required parameter: sessionId")
-	}
-	if err := ctx.Projects.Associate(path, sessionID); err != nil {
-		return RpcResult{}, fmt.Errorf("associate: %w", err)
-	}
-	return RpcResult{Value: map[string]any{"ok": true}}, nil
-}
-
-func projectDisassociate(params map[string]any, ctx *RpcContext) (RpcResult, error) {
-	path, ok := params["path"].(string)
-	if !ok || path == "" {
-		return RpcResult{}, fmt.Errorf("missing required parameter: path")
-	}
-	sessionID, ok := params["sessionId"].(string)
-	if !ok || sessionID == "" {
-		return RpcResult{}, fmt.Errorf("missing required parameter: sessionId")
-	}
-	if err := ctx.Projects.Disassociate(path, sessionID); err != nil {
-		return RpcResult{}, fmt.Errorf("disassociate: %w", err)
-	}
-	return RpcResult{Value: map[string]any{"ok": true}}, nil
 }
 
 func subscribeCancel(params map[string]any, _ *RpcContext) (RpcResult, error) {

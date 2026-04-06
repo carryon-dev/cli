@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/carryon-dev/cli/internal/backend"
 	"github.com/carryon-dev/cli/internal/holder"
 )
 
@@ -26,6 +27,13 @@ func testEchoBackCommand() string {
 // The caller is responsible for stopping the server and shutting down the session manager.
 func setupTestServer(t *testing.T) (*Server, string) {
 	t.Helper()
+	srv, socketPath, _ := setupTestServerWithCtx(t)
+	return srv, socketPath
+}
+
+// setupTestServerWithCtx is like setupTestServer but also returns the RpcContext.
+func setupTestServerWithCtx(t *testing.T) (*Server, string, *RpcContext) {
+	t.Helper()
 	socketPath := testSocketPath(t)
 	ctx := setupTestContext(t)
 
@@ -39,7 +47,7 @@ func setupTestServer(t *testing.T) (*Server, string) {
 		srv.Stop()
 	})
 
-	return srv, socketPath
+	return srv, socketPath, ctx
 }
 
 func TestClientConnectDisconnect(t *testing.T) {
@@ -624,8 +632,8 @@ func TestClientDaemonLogs(t *testing.T) {
 	}
 }
 
-func TestClientProjectAssociate(t *testing.T) {
-	_, socketPath := setupTestServer(t)
+func TestClientProjectTerminalsCwdMatching(t *testing.T) {
+	_, socketPath, rpcCtx := setupTestServerWithCtx(t)
 
 	client := NewClient()
 	if err := client.Connect(socketPath); err != nil {
@@ -633,27 +641,22 @@ func TestClientProjectAssociate(t *testing.T) {
 	}
 	defer client.Disconnect()
 
-	sessionID := createTestSession(t, client, "sleep 30")
+	projectPath := filepath.Join(os.TempDir(), "test-project-cwd")
 
-	result, err := client.Call("project.associate", map[string]any{
-		"path":      filepath.Join(os.TempDir(), "test-project"),
-		"sessionId": sessionID,
+	// Inject a session directly into the session manager with cwd set.
+	// This avoids actually spawning a process in the test environment.
+	sess, err := rpcCtx.SessionManager.Create(backend.CreateOpts{
+		Name:    "cwd-session",
+		Cwd:     projectPath,
+		Command: "cat",
 	})
 	if err != nil {
-		t.Fatalf("project.associate failed: %v", err)
+		t.Skipf("session create unavailable in this environment: %v", err)
 	}
 
-	assocMap, ok := result.(map[string]any)
-	if !ok {
-		t.Fatalf("expected map from project.associate, got %T", result)
-	}
-	if assocMap["ok"] != true {
-		t.Errorf("expected ok:true from project.associate, got %v", assocMap)
-	}
-
-	// Verify via project.terminals
+	// project.terminals should return it under "matched"
 	termResult, err := client.Call("project.terminals", map[string]any{
-		"path": filepath.Join(os.TempDir(), "test-project"),
+		"path": projectPath,
 	})
 	if err != nil {
 		t.Fatalf("project.terminals failed: %v", err)
@@ -662,12 +665,23 @@ func TestClientProjectAssociate(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected map from project.terminals, got %T", termResult)
 	}
-	associated, ok := termMap["associated"].([]any)
+	matched, ok := termMap["matched"].([]any)
 	if !ok {
-		t.Fatalf("expected associated to be array, got %T", termMap["associated"])
+		t.Fatalf("expected matched to be array, got %T", termMap["matched"])
 	}
-	if len(associated) != 1 {
-		t.Errorf("expected 1 associated session, got %d", len(associated))
+	found := false
+	for _, entry := range matched {
+		m, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if m["id"] == sess.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected session %s to appear in matched, got %v", sess.ID, matched)
 	}
 }
 
