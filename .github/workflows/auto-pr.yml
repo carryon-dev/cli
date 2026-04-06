@@ -23,23 +23,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          commits=$(git log origin/main..HEAD --oneline 2>/dev/null | head -1)
+          if [ -z "$commits" ]; then
+            echo "No commits between main and dev, skipping PR creation"
+            exit 0
+          fi
+
           existing=$(gh pr list --base main --head dev --json number --jq '.[0].number' 2>/dev/null || echo "")
 
           if [ -n "$existing" ]; then
             echo "PR #$existing already exists - push will trigger CI on it"
           else
-            commits=$(git log origin/main..HEAD --oneline)
+            COMMIT_MSG=$(git log -1 --pretty=%s)
+            CHANGES=$(git log origin/main..HEAD --pretty=format:'- %s' 2>/dev/null | head -20 || echo "- $COMMIT_MSG")
+
+            printf -v BODY '%s\n\n## Changes\n%s\n\n---\n*Auto-opened from `dev` branch push.*' \
+              "Automated PR from dev branch." "$CHANGES"
+
             gh pr create \
               --base main \
               --head dev \
-              --title "dev → main" \
-              --body "$(cat <<EOF
-          ## Changes
-
-          $(echo "$commits" | sed 's/^/- /')
-
-          ---
-          *Auto-opened from \`dev\` branch push.*
-          EOF
-          )"
+              --title "$COMMIT_MSG" \
+              --body "$BODY" \
+              --label "release:patch"
           fi
