@@ -21,7 +21,7 @@ jobs:
 
       - name: Create or update PR
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           commits=$(git log origin/main..HEAD --oneline 2>/dev/null | head -1)
           if [ -z "$commits" ]; then
