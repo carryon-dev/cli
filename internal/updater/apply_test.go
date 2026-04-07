@@ -3,8 +3,10 @@ package updater
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -20,7 +22,8 @@ func TestApplyReplacesBinary(t *testing.T) {
 	// Create a fake "new" binary in updates dir
 	updatesDir := filepath.Join(tmpDir, "updates")
 	os.MkdirAll(updatesDir, 0755)
-	newPath := filepath.Join(updatesDir, "carryon-darwin-arm64")
+	assetName := fmt.Sprintf("carryon-%s-%s", runtime.GOOS, runtime.GOARCH)
+	newPath := filepath.Join(updatesDir, assetName)
 	os.WriteFile(newPath, []byte("new-binary"), 0755)
 
 	// Set ExpectedHash to exercise the same-session verification path.
@@ -93,7 +96,8 @@ func TestHasPendingUpdateDetectsDownloadedBinary(t *testing.T) {
 	// Create updates directory with a binary
 	updatesDir := filepath.Join(tmpDir, "updates")
 	os.MkdirAll(updatesDir, 0755)
-	binaryPath := filepath.Join(updatesDir, "carryon-darwin-arm64")
+	assetName := fmt.Sprintf("carryon-%s-%s", runtime.GOOS, runtime.GOARCH)
+	binaryPath := filepath.Join(updatesDir, assetName)
 	os.WriteFile(binaryPath, []byte("new-binary"), 0755)
 
 	path, found := a.HasPendingUpdate()
